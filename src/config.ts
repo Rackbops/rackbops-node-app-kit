@@ -44,6 +44,13 @@ export interface ResolveOptions {
   readFile: (path: string) => string | null
   /** Absolute default for the SPA static dir when nothing overrides it. */
   defaultStaticDir: string
+  /** Default port when neither `<PREFIX>_PORT` nor `config.toml`'s `port` is set. Optional --
+   * omit it to keep this module's own `8686` fallback (Kenzen's value, the extraction source),
+   * unchanged from before this option existed. A consumer whose real deployed default differs
+   * (e.g. artifact-console's `8787`) MUST pass this explicitly rather than relying on `8686`
+   * coinciding with its own default -- `Rackbops/artifact-console#161` shipped exactly that
+   * silent mismatch, caught only by a real Docker boot, before this option existed. */
+  defaultPort?: number
 }
 
 const DEFAULT_CONFIG_DIR = "/config"
@@ -86,7 +93,7 @@ export function resolveConfig(
   } else if ("port" in fileConfig) {
     port = coercePort(fileConfig.port, `${configFile} [port]`)
   } else {
-    port = DEFAULT_PORT
+    port = options.defaultPort ?? DEFAULT_PORT
   }
 
   const staticDirEnv = nonEmpty(env[`${p}_STATIC_DIR`])

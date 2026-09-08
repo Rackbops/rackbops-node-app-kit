@@ -193,6 +193,64 @@ describe("resolveConfig", () => {
   })
 })
 
+// Rackbops/rackbops-node-app-kit#3: the hardcoded 8686 default had no override, so a consumer
+// whose real default differs (artifact-console's 8787) silently got 8686 instead -- caught only
+// by a real Docker boot (Rackbops/artifact-console#161), invisible to Kenzen purely because its
+// own default happens to already be 8686. Proves all four levels of port precedence.
+describe("resolveConfig port precedence with defaultPort", () => {
+  const opts = (readFile: (path: string) => string | null, defaultPort?: number) => ({
+    prefix: PREFIX,
+    readFile,
+    defaultStaticDir: "/app/public",
+    defaultPort,
+  })
+
+  it("omitting defaultPort keeps the original 8686 fallback unchanged (no behaviour change for an existing caller)", () => {
+    expect(
+      resolveConfig(
+        {},
+        opts(() => null),
+      ).port,
+    ).toBe(8686)
+  })
+
+  it("defaultPort is used when neither env nor config.toml set a port", () => {
+    expect(
+      resolveConfig(
+        {},
+        opts(() => null, 8787),
+      ).port,
+    ).toBe(8787)
+  })
+
+  it("KENZEN_PORT still wins over defaultPort", () => {
+    expect(
+      resolveConfig(
+        { KENZEN_PORT: "9002" },
+        opts(() => null, 8787),
+      ).port,
+    ).toBe(9002)
+  })
+
+  it("config.toml's port still wins over defaultPort", () => {
+    expect(
+      resolveConfig(
+        {},
+        opts(() => "port = 9003\n", 8787),
+      ).port,
+    ).toBe(9003)
+  })
+
+  it("a blank KENZEN_PORT still falls through past defaultPort to config.toml, same precedence as before", () => {
+    expect(
+      resolveConfig(
+        { KENZEN_PORT: "" },
+        opts(() => "port = 9004\n", 8787),
+      ).port,
+    ).toBe(9004)
+  })
+})
+
 // Proves `prefix` is a genuine parameter, not a relabeled hardcoded "KENZEN" -- the whole
 // reason this module exists as a shared package rather than a per-app fork. Uses a
 // deliberately different prefix throughout so a regression back to a hardcoded literal fails
