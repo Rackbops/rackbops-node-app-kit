@@ -5,11 +5,10 @@ install:
     pnpm install --frozen-lockfile
 
 lint:
-    pnpm biome lint .
+    pnpm biome check .
 
 fix:
-    pnpm biome format --write .
-    pnpm biome lint --write .
+    pnpm biome check --write .
 
 typecheck:
     pnpm tsc --noEmit
@@ -17,7 +16,10 @@ typecheck:
 test:
     pnpm vitest run
 
-check: lint typecheck test
+build:
+    pnpm tsc
+
+check: lint typecheck test build
 
 clean:
     rm -rf dist *.tsbuildinfo
