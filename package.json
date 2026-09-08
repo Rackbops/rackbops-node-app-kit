@@ -1,0 +1,78 @@
+{
+  "name": "@rackbops/node-app-kit",
+  "version": "0.1.0",
+  "description": "Shared Node/Hono app-server building blocks: config resolution, structured logging, /healthz, version resolution, SQLite db/migrate/state, and SPA static serving.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rackbops/rackbops-node-app-kit.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.15.1",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/__fixtures__/**"
+  ],
+  "exports": {
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
+    },
+    "./log": {
+      "types": "./dist/log.d.ts",
+      "default": "./dist/log.js"
+    },
+    "./healthz": {
+      "types": "./dist/healthz.d.ts",
+      "default": "./dist/healthz.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "default": "./dist/version.js"
+    },
+    "./db": {
+      "types": "./dist/db.d.ts",
+      "default": "./dist/db.js"
+    },
+    "./migrate": {
+      "types": "./dist/migrate.d.ts",
+      "default": "./dist/migrate.js"
+    },
+    "./state": {
+      "types": "./dist/state.d.ts",
+      "default": "./dist/state.js"
+    },
+    "./static": {
+      "types": "./dist/static.d.ts",
+      "default": "./dist/static.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check": "biome check . && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "peerDependencies": {
+    "hono": ">=4.0.0"
+  },
+  "dependencies": {
+    "smol-toml": "^1.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^24.0.0",
+    "hono": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
