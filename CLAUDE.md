@@ -54,13 +54,27 @@ needed for `node:sqlite` at the pinned `engines.node >=24`.
 
 Push to `main` (a squash-merged PR) triggers `release.yml`, which bumps the version from
 conventional-commit messages touching `src/`, tags `vX.Y.Z`, and creates a GitHub release; the
-tag push triggers `publish.yml`, which publishes to npm under the `@rackbops` scope using the
-`NPM_TOKEN` secret (the same pattern `rackbops-ui-ux-std-lib` uses -- a granular
-read+write-on-`@rackbops`-scope token, not OIDC trusted publishing, despite that having been the
-stated plan when this repo was created; the actual copied-from workflow uses `NPM_TOKEN`, and
-this repo matches what's proven working rather than what was assumed). `RELEASE_TOKEN` unset
-makes `release.yml` an inert no-op -- both secrets need to exist in this repo's settings before
-the first real release.
+tag push triggers `publish.yml`. **`publish.yml` is a byte-for-byte copy of
+`rackbops-ui-ux-std-lib`'s** (names substituted only -- diff it against that repo's copy before
+believing anything has drifted). Its default auth path is **OIDC trusted publishing** -- no
+long-lived token; GitHub mints a short-lived id-token (`permissions: id-token: write`) and npm
+exchanges it against the trusted publisher configured on npmjs.com for
+`Rackbops`/`rackbops-node-app-kit`/`publish.yml`, generating provenance automatically. `NPM_TOKEN`
+is the **break-glass fallback** (classic token auth, no provenance), read by the workflow's own
+preflight step -- set it and OIDC is bypassed; leave it unset for normal operation. (An earlier
+version of this doc claimed the reverse -- NPM_TOKEN-only, no OIDC -- based on a stale local
+checkout of `rackbops-ui-ux-std-lib`; corrected once the actual current file, and a real
+successful OIDC publish run against it, were checked.)
+
+**The very first publish is the one genuine exception.** npm requires a trusted publisher to be
+configured on an *existing* package's own settings page -- there is no way to pre-register one
+for a package that has never been published, so `@rackbops/node-app-kit`'s first-ever `v0.1.0`
+publish has to go through the `NPM_TOKEN` break-glass. Once that publish creates the package on
+the registry, add the trusted publisher (`Rackbops` / `rackbops-node-app-kit` / `publish.yml`) on
+its npmjs.com settings page, then remove the `NPM_TOKEN` secret so every release after that goes
+through OIDC, matching `rackbops-ui-ux-std-lib`. `RELEASE_TOKEN` unset makes `release.yml` an
+inert no-op regardless of which publish-auth path is in use -- it needs to exist in this repo's
+settings before any real release, first or otherwise.
 
 ## Key gotchas
 
