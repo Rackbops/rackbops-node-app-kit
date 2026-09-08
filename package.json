@@ -1,6 +1,6 @@
 {
   "name": "@rackbops/node-app-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared Node/Hono app-server building blocks: config resolution, structured logging, /healthz, version resolution, SQLite db/migrate/state, and SPA static serving.",
   "license": "MIT",
   "type": "module",
