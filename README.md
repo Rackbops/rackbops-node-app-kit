@@ -27,17 +27,29 @@ const config = resolveConfig(process.env, {
   prefix: "KENZEN", // -> reads KENZEN_CONFIG_DIR, KENZEN_HOST, KENZEN_PORT, ...
   readFile: (path) => { try { return readFileSync(path, "utf8") } catch { return null } },
   defaultStaticDir: "/app/public",
+  defaultPort: 8686, // optional -- omit to keep this module's own 8686 fallback
 })
 ```
 
-Precedence `<PREFIX>_*` env > `<configDir>/config.toml` > built-in defaults. Resolves `host`,
-`port`, `configDir`, `configFile`, `staticDir`, `stateDir`, `dbFile` (named
-`<lowercased prefix>.db` under `stateDir`), and `configSource` (`"file"` or `"defaults"`, for
-the boot-log line the app-config standard asks every app to print). A **set-but-blank** env var
-(a common `.env`/compose slip) is treated as unset for every field, not silently accepted or
-crashed on. App-specific fields (a secret token, an Access/identity configuration) are
-deliberately **not** part of this module -- read those directly from `process.env` yourself, the
-same way Kenzen reads `KENZEN_INGEST_TOKEN` outside `resolveConfig`.
+Precedence `<PREFIX>_*` env > `<configDir>/config.toml` > `defaultPort` (if given) > this
+module's own built-in `8686` fallback (only when `defaultPort` is omitted -- Kenzen's own value,
+the extraction source). Resolves `host`, `port`, `configDir`, `configFile`, `staticDir`,
+`stateDir`, `dbFile` (named `<lowercased prefix>.db` under `stateDir`), and `configSource`
+(`"file"` or `"defaults"`, for the boot-log line the app-config standard asks every app to
+print). A **set-but-blank** env var (a common `.env`/compose slip) is treated as unset for every
+field, not silently accepted or crashed on. App-specific fields (a secret token, an
+Access/identity configuration) are deliberately **not** part of this module -- read those
+directly from `process.env` yourself, the same way Kenzen reads `KENZEN_INGEST_TOKEN` outside
+`resolveConfig`.
+
+**Pass `defaultPort` explicitly if your own default differs from `8686`.** Relying on the
+built-in fallback coinciding with your app's real default is exactly what silently broke
+`artifact-console` (`Rackbops/artifact-console#161`, its own default is `8787`) -- caught only by
+a real Docker boot in CI, since nothing else exercises a true zero-config boot against a real
+container. There is no `defaultStaticDir`-shaped "this has to be provided" requirement here
+only because the original `8686` fallback has to stay the default when the option is omitted, to
+keep every existing caller's behaviour unchanged; a *new* consumer should still always pass its
+own real default rather than lean on that fallback.
 
 ### `@rackbops/node-app-kit/log`
 
