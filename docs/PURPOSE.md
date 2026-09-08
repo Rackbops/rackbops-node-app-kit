@@ -12,12 +12,13 @@ lands for every consumer at once.
 
 ## What's in scope
 
-Eight small, independent concerns, each its own subpath export: `config` (env/file/default
-resolution per the app-config standard), `log` (structured JSON logging), `healthz` (the
-`{ok, version, apiVersion}` handler), `version` (reads a package's own version at runtime), `db`,
-`migrate`, and `state` (SQLite open + numbered migrations + boot-time assembly, three exports for
-one boot-time concern), and `static` (SPA file serving). Each is framework-free except `healthz`
-and `static`, which are Hono handlers (`hono` is a peer dependency, not bundled).
+Eight subpath exports covering six independent concerns: `config` (env/file/default resolution
+per the app-config standard), `log` (structured JSON logging), `healthz` (the
+`{ok, version, apiVersion}` handler), `version` (reads a package's own version at runtime),
+boot-time state -- `db`, `migrate`, and `state`, three exports for one concern (open the
+database, apply migrations, combine both at boot) -- and `static` (SPA file serving). Each is
+framework-free except `healthz` and `static`, which are Hono handlers (`hono` is a peer
+dependency, not bundled).
 
 ## Explicit non-goals
 

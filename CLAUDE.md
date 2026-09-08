@@ -46,9 +46,9 @@ behavior on which consumer is calling.
 
 ## Testing & checks
 
-`just check` (lint + typecheck + test) mirrors CI (`.github/workflows/ci.yml`): `biome check .`,
-`tsc --noEmit`, `vitest run`, then `tsc` (build). No experimental Node flag is needed for
-`node:sqlite` at the pinned `engines.node >=24`.
+`just check` (lint + typecheck + test + build) mirrors CI (`.github/workflows/ci.yml`):
+`biome check .`, `tsc --noEmit`, `vitest run`, then `tsc` (build). No experimental Node flag is
+needed for `node:sqlite` at the pinned `engines.node >=24`.
 
 ## Release
 

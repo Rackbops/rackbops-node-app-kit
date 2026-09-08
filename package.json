@@ -58,8 +58,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "biome lint .",
-    "format": "biome format --write .",
+    "lint": "biome check .",
+    "format": "biome check --write .",
     "check": "biome check . && pnpm typecheck && pnpm test && pnpm build"
   },
   "peerDependencies": {

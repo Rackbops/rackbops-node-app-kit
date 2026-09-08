@@ -121,8 +121,8 @@ the consuming app. See [`docs/PURPOSE.md`](docs/PURPOSE.md) for the full non-goa
 
 ```bash
 just install   # pnpm install --frozen-lockfile
-just check     # lint + typecheck + test
-just fix       # biome format --write + lint --write
+just check     # lint + typecheck + test + build
+just fix       # biome check --write (format + lint autofix in one pass)
 ```
 
 See [`Justfile`](Justfile) for the full recipe list, or run `just` with no arguments.
