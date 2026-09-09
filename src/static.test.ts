@@ -78,6 +78,31 @@ describe("spaHandler", () => {
     expect(res.status).toBe(404)
   })
 
+  it("returns a real 404 for a missing .woff2, not the HTML fallback", async () => {
+    // Only the "serves a .woff2" test above exercised this entry before -- nothing guarded the
+    // 404-vs-fallback half specifically for a font, only for .webp.
+    const res = await appWith(fixtureDir).request("/missing-font.woff2")
+    expect(res.status).toBe(404)
+  })
+
+  it("404s a client-route-shaped path whose last segment looks like a mapped asset -- an accepted tradeoff (#13, #14 gate)", async () => {
+    // Widening CONTENT_TYPES widens the 404 rule along with it: a client-side route whose last
+    // segment happens to look like one of the newly-mapped extensions (e.g. a REST-ish
+    // "/reports/2026.xml") now 404s here instead of falling through to index.html, whereas before
+    // #13 only .html/.js/.css/.json/.svg/.png/.ico could trigger this. That is the intended fix,
+    // not a side effect: an issue-13 "missing asset" and a "route that happens to look like one"
+    // are indistinguishable to this handler by design (it never knows the consumer's route table),
+    // so a consumer whose router uses a dotted, asset-extension-shaped segment must expect a 404
+    // here, not a rendered page. Checked against both real consumers of this module import path --
+    // Kenzen's routes (needs-decision, repos, decided, dependabot, history) and artifact-console's
+    // wildcard shell route -- neither uses a dotted segment; artifact-console additionally doesn't
+    // even import this module's spaHandler (its own static.ts is a deliberate, independent fork,
+    // see that file's own doc-comment). See the PR body's "Consumer-facing behaviour change"
+    // section for the full disclosure.
+    const res = await appWith(fixtureDir).request("/reports/2026.xml")
+    expect(res.status).toBe(404)
+  })
+
   it("a URL-encoded traversal attempt never escapes staticDir (falls back to index.html, not a 500 or a leaked file)", async () => {
     const res = await appWith(fixtureDir).request("/..%2f..%2f..%2fetc%2fpasswd")
     // `%2f` is never decoded into a literal `/` by this handler, so it can't become a real path
