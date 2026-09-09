@@ -56,6 +56,28 @@ describe("spaHandler", () => {
     expect(res.status).toBe(404)
   })
 
+  it("serves a .webp with the image/webp content-type", async () => {
+    const res = await appWith(fixtureDir).request("/banner.webp")
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toBe("image/webp")
+    expect(await res.text()).toContain("fixture-webp-content")
+  })
+
+  it("serves a .woff2 with the font/woff2 content-type", async () => {
+    const res = await appWith(fixtureDir).request("/font.woff2")
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toBe("font/woff2")
+    expect(await res.text()).toContain("fixture-woff2-content")
+  })
+
+  it("returns a real 404 for a missing .webp, not the HTML fallback (#13)", async () => {
+    // Before #13, a missing asset whose extension wasn't in CONTENT_TYPES fell through to the
+    // SPA fallback with a 200 -- a purged or misnamed image silently returned the HTML shell to
+    // an <img>, invisible to any check that only looks at status.
+    const res = await appWith(fixtureDir).request("/missing-banner.webp")
+    expect(res.status).toBe(404)
+  })
+
   it("a URL-encoded traversal attempt never escapes staticDir (falls back to index.html, not a 500 or a leaked file)", async () => {
     const res = await appWith(fixtureDir).request("/..%2f..%2f..%2fetc%2fpasswd")
     // `%2f` is never decoded into a literal `/` by this handler, so it can't become a real path
