@@ -14,7 +14,7 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@12.3.4",
+  "packageManager": "pnpm@12.4.1",
   "files": [
     "dist",
     "!dist/**/*.test.*",
@@ -69,8 +69,8 @@
     "smol-toml": "^1.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.0.0",
-    "@types/node": "^26.0.0",
+    "@biomejs/biome": "^2.5.13",
+    "@types/node": "^26.5.1",
     "hono": "^4.0.0",
     "typescript": "^7.0.0",
     "vitest": "^5.0.0"
