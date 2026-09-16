@@ -177,7 +177,7 @@ importers:
         specifier: ^26.6.1
         version: 26.6.1
       hono:
-        specifier: ^4.13.8
+        specifier: ^4.0.0
         version: 4.13.8
       typescript:
         specifier: ^7.0.0
