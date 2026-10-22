@@ -11,6 +11,7 @@ const opts = (readFile: (path: string) => string | null) => ({
   prefix: PREFIX,
   readFile,
   defaultStaticDir: "/app/public",
+  platform: "linux",
 })
 
 describe("resolveConfig", () => {
@@ -287,5 +288,55 @@ describe("resolveConfig with a different prefix", () => {
         acOpts(() => null),
       ),
     ).toThrow(/^AC_STATE_DIR must be an absolute path/)
+  })
+})
+
+describe("resolveConfig Windows root-default guard (#12)", () => {
+  const win = (readFile: (path: string) => string | null = () => null) => ({
+    ...opts(readFile),
+    platform: "win32",
+  })
+
+  it("refuses the /state default on win32, naming the var", () => {
+    expect(() => resolveConfig({ KENZEN_CONFIG_DIR: "C:\\cfg" }, win())).toThrow(
+      /KENZEN_STATE_DIR is not set.*\/state.*Set KENZEN_STATE_DIR/,
+    )
+  })
+
+  it("refuses the /config default on win32, naming the var", () => {
+    expect(() => resolveConfig({ KENZEN_STATE_DIR: "C:\\st" }, win())).toThrow(
+      /KENZEN_CONFIG_DIR is not set.*\/config.*Set KENZEN_CONFIG_DIR/,
+    )
+  })
+
+  it("treats a blank env value as unset, so it still refuses", () => {
+    expect(() =>
+      resolveConfig({ KENZEN_CONFIG_DIR: "C:\\cfg", KENZEN_STATE_DIR: "" }, win()),
+    ).toThrow(/KENZEN_STATE_DIR is not set/)
+  })
+
+  it("allows explicit env vars on win32, even a root path", () => {
+    const cfg = resolveConfig({ KENZEN_CONFIG_DIR: "C:\\cfg", KENZEN_STATE_DIR: "R:\\" }, win())
+    expect(cfg.stateDir).toBe("R:\\")
+  })
+
+  it("allows a config.toml state_dir on win32 without the env var", () => {
+    const cfg = resolveConfig(
+      { KENZEN_CONFIG_DIR: "C:\\cfg" },
+      win(() => 'state_dir = "C:\\\\st"\n'),
+    )
+    expect(cfg.stateDir).toBe("C:\\st")
+  })
+
+  it("keeps the defaults on linux (containers)", () => {
+    const cfg = resolveConfig({}, { ...win(), platform: "linux" })
+    expect(cfg.stateDir).toBe("/state")
+    expect(cfg.configDir).toBe("/config")
+  })
+
+  it("defaults platform to process.platform", () => {
+    const run = () => resolveConfig({}, { ...opts(() => null), platform: undefined })
+    if (process.platform === "win32") expect(run).toThrow(/is not set/)
+    else expect(run().stateDir).toBe("/state")
   })
 })
