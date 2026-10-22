@@ -51,6 +51,10 @@ export interface ResolveOptions {
    * coinciding with its own default -- `Rackbops/artifact-console#161` shipped exactly that
    * silent mismatch, caught only by a real Docker boot, before this option existed. */
   defaultPort?: number
+  /** Platform name as `process.platform` reports it. Optional -- defaults to `process.platform`;
+   * injected so tests can exercise the Windows guard on any host. On `"win32"`, falling back to
+   * the `/config` or `/state` default throws (see `resolveConfig`). */
+  platform?: string
 }
 
 const DEFAULT_CONFIG_DIR = "/config"
@@ -63,6 +67,7 @@ export function resolveConfig(
   options: ResolveOptions,
 ): ResolvedConfig {
   const p = options.prefix
+  const platform = options.platform ?? process.platform
 
   // A set-but-blank value (a common env-file/compose slip) is treated as unset everywhere
   // below, not just for one field -- an artifact-console adversarial review (Tooling#478 K4-2)
@@ -74,6 +79,9 @@ export function resolveConfig(
   const configDirRaw = nonEmpty(env[`${p}_CONFIG_DIR`])
   if (configDirRaw !== undefined) {
     requireAbsolute(configDirRaw, `${p}_CONFIG_DIR`)
+  }
+  if (configDirRaw === undefined) {
+    refuseRootDefault(platform, `${p}_CONFIG_DIR`, DEFAULT_CONFIG_DIR)
   }
   const configDir = configDirRaw ?? DEFAULT_CONFIG_DIR
   const configFile = `${configDir.replace(/[\\/]+$/, "")}/config.toml`
@@ -114,6 +122,9 @@ export function resolveConfig(
       stateDirEnv !== undefined ? `${p}_STATE_DIR` : `${configFile} [state_dir]`,
     )
   }
+  if (stateDirRaw === undefined) {
+    refuseRootDefault(platform, `${p}_STATE_DIR`, DEFAULT_STATE_DIR)
+  }
   const stateDir = stateDirRaw ?? DEFAULT_STATE_DIR
   const dbFile = `${stateDir.replace(/[\\/]+$/, "")}/${p.toLowerCase()}.db`
 
@@ -126,6 +137,21 @@ export function resolveConfig(
     stateDir,
     dbFile,
     configSource,
+  }
+}
+
+/**
+ * `/config` and `/state` are right in a container, where each is a dedicated mount, but on
+ * Windows they resolve against the *current drive's root* (`R:\state\kenzen.db`), so every
+ * worktree and local run on that drive silently shares one directory (`Rackbops/kenzen#72`).
+ * Only the unset-default case is refused: an explicit env var or config.toml value is the
+ * caller's deliberate choice, however unusual.
+ */
+function refuseRootDefault(platform: string, envVar: string, dflt: string): void {
+  if (platform === "win32") {
+    throw new Error(
+      `${envVar} is not set, and the default ${dflt} would resolve to the current drive's root on Windows, shared by every checkout and run. Set ${envVar} to an absolute path.`,
+    )
   }
 }
 

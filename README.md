@@ -42,6 +42,13 @@ Access/identity configuration) are deliberately **not** part of this module -- r
 directly from `process.env` yourself, the same way Kenzen reads `KENZEN_INGEST_TOKEN` outside
 `resolveConfig`.
 
+**On Windows, `<PREFIX>_CONFIG_DIR` must be set, and so must `<PREFIX>_STATE_DIR` unless
+`config.toml` supplies `state_dir`.** The `/state` and `/config` defaults are right in a container, but on Windows they
+resolve to the current drive's root, shared by every checkout and run
+(`Rackbops/kenzen#72`), so `resolveConfig` throws when it would fall back to either on
+`process.platform === "win32"`. An explicit value is never second-guessed. Pass `platform` in the
+options to override the detected platform (tests).
+
 **Pass `defaultPort` explicitly if your own default differs from `8686`.** Relying on the
 built-in fallback coinciding with your app's real default is exactly what silently broke
 `artifact-console` (`Rackbops/artifact-console#161`, its own default is `8787`) -- caught only by
