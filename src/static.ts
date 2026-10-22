@@ -5,8 +5,8 @@ import type { Context } from "hono"
 /**
  * A small static-file handler for a single-page app. Extracted from `Rackbops/kenzen`'s
  * `packages/server/src/static.ts` (simplified from `Rackbops/artifact-console`'s
- * `packages/host/src/static.ts` for Kenzen's K4-2 scope), already fully generic -- no change
- * from the source. Serves from an absolute `staticDir`, rejects path traversal, returns 404 for
+ * `packages/host/src/static.ts` for Kenzen's K4-2 scope), generic apart from the cache-control
+ * classification below. Serves from an absolute `staticDir`, rejects path traversal, returns 404 for
  * a genuinely missing known-type asset, and falls back to `index.html` for extension-less
  * routes so client-side routing works.
  *
@@ -18,12 +18,16 @@ import type { Context } from "hono"
  * `alpha.2 -> alpha.3`). Ported from `Rackbops/artifact-console`'s `packages/host/src/static.ts`.
  */
 
-/** A rollup-style content hash before the extension: `index-AbCdEf12.js`. */
-const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[^.]+$/
+/**
+ * A rollup-style content hash before the extension: `index-AbCdEf12.js`. The hash must contain an
+ * uppercase letter or digit, so a hyphenated plain name (`logo-background.png`) is not mistaken
+ * for one; a hash that happens to be all lowercase letters just revalidates.
+ */
+const HASHED_ASSET = /-(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]{8,}\.[^.]+$/
 
 /**
  * `Cache-Control` for a *served* path (root-relative, `/`-separated, e.g. `assets/index-X.js`).
- * Immutable only when the file sits directly under an `assets/` directory AND its basename
+ * Immutable only when the file sits directly under the root-level `assets/` directory AND its basename
  * carries a content hash; everything else revalidates (`no-cache`). Both conditions are
  * required, and the key is the served path, so the SPA fallback's `index.html` is classified
  * as `index.html`, never as the client route it answered. Erring toward revalidation is the
@@ -31,10 +35,11 @@ const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[^.]+$/
  * stable URL serves stale code indefinitely.
  */
 export function cacheControl(servedPath: string): string {
-  const parts = servedPath.replace(/^\/+/, "").split("/")
-  const name = parts[parts.length - 1] ?? ""
-  const underAssets = parts.length >= 2 && parts[parts.length - 2] === "assets"
-  return underAssets && HASHED_ASSET.test(name) ? "public, max-age=31536000, immutable" : "no-cache"
+  const parts = servedPath.split("/")
+  const underAssets = parts.length === 2 && parts[0] === "assets"
+  return underAssets && HASHED_ASSET.test(parts[1] ?? "")
+    ? "public, max-age=31536000, immutable"
+    : "no-cache"
 }
 
 const CONTENT_TYPES: Record<string, string> = {

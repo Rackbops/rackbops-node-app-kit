@@ -140,6 +140,15 @@ describe("cacheControl", () => {
     expect(cacheControl("index.js")).toBe("no-cache")
   })
 
+  it("is no-cache for a hyphenated plain name that only looks like a hash", () => {
+    expect(cacheControl("assets/logo-background.png")).toBe("no-cache")
+    expect(cacheControl("assets/jquery-ui-widgets.js")).toBe("no-cache")
+  })
+
+  it("is no-cache under a nested assets/ directory, only the root-level one counts", () => {
+    expect(cacheControl("foo/assets/x-AbCdEf12.js")).toBe("no-cache")
+  })
+
   it("needs at least 8 hash characters", () => {
     expect(cacheControl("assets/index-AbCdEf1.js")).toBe("no-cache")
   })
