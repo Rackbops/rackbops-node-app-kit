@@ -334,9 +334,20 @@ describe("resolveConfig Windows root-default guard (#12)", () => {
     expect(cfg.configDir).toBe("/config")
   })
 
+  it("keeps the defaults on other non-win32 platforms", () => {
+    const cfg = resolveConfig({}, { ...win(), platform: "darwin" })
+    expect(cfg.stateDir).toBe("/state")
+  })
+
   it("defaults platform to process.platform", () => {
-    const run = () => resolveConfig({}, { ...opts(() => null), platform: undefined })
-    if (process.platform === "win32") expect(run).toThrow(/is not set/)
-    else expect(run().stateDir).toBe("/state")
+    const real = Object.getOwnPropertyDescriptor(process, "platform")
+    Object.defineProperty(process, "platform", { value: "win32" })
+    try {
+      expect(() => resolveConfig({}, { ...opts(() => null), platform: undefined })).toThrow(
+        /is not set/,
+      )
+    } finally {
+      if (real) Object.defineProperty(process, "platform", real)
+    }
   })
 })
