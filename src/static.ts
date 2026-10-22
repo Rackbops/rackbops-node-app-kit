@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises"
-import { extname, resolve, sep } from "node:path"
+import { extname, relative, resolve, sep } from "node:path"
 import type { Context } from "hono"
 
 /**
@@ -8,9 +8,34 @@ import type { Context } from "hono"
  * `packages/host/src/static.ts` for Kenzen's K4-2 scope), already fully generic -- no change
  * from the source. Serves from an absolute `staticDir`, rejects path traversal, returns 404 for
  * a genuinely missing known-type asset, and falls back to `index.html` for extension-less
- * routes so client-side routing works. Dropped (same as the source): content-hashed-bundle
- * cache-control classification -- add it back in a consumer if it starts serving one.
+ * routes so client-side routing works.
+ *
+ * Every response carries a `Cache-Control` from `cacheControl` below. A Vite/rollup SPA pins
+ * *unhashed* stable URLs (`index.html`, the entry `/index.js`, `/vendor/*.js` singletons) whose
+ * bytes change on every redeploy while the URL does not; served cacheable, they strand a
+ * returning browser (and the Cloudflare edge) on the previous deploy's bundle until a manual
+ * purge -- observed live at artifact-console's M0 demo (`Rackbops/artifact-console#24`,
+ * `alpha.2 -> alpha.3`). Ported from `Rackbops/artifact-console`'s `packages/host/src/static.ts`.
  */
+
+/** A rollup-style content hash before the extension: `index-AbCdEf12.js`. */
+const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[^.]+$/
+
+/**
+ * `Cache-Control` for a *served* path (root-relative, `/`-separated, e.g. `assets/index-X.js`).
+ * Immutable only when the file sits directly under an `assets/` directory AND its basename
+ * carries a content hash; everything else revalidates (`no-cache`). Both conditions are
+ * required, and the key is the served path, so the SPA fallback's `index.html` is classified
+ * as `index.html`, never as the client route it answered. Erring toward revalidation is the
+ * safe default: a mis-classified hashed asset costs one conditional request, a mis-classified
+ * stable URL serves stale code indefinitely.
+ */
+export function cacheControl(servedPath: string): string {
+  const parts = servedPath.replace(/^\/+/, "").split("/")
+  const name = parts[parts.length - 1] ?? ""
+  const underAssets = parts.length >= 2 && parts[parts.length - 2] === "assets"
+  return underAssets && HASHED_ASSET.test(name) ? "public, max-age=31536000, immutable" : "no-cache"
+}
 
 const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -55,25 +80,36 @@ export function spaHandler(staticDir: string): (c: Context) => Promise<Response>
     if (requested !== null) {
       const file = await readSafe(requested)
       if (file !== null) {
-        return body(file, requested)
+        return body(file, requested, servedPath(root, requested))
       }
       // A missing *known asset* (e.g. a purged .js/.css bundle) is a real 404. An unknown or
       // extension-less path (including a client route) falls through to index.html.
       const ext = extname(requested).toLowerCase()
       if (ext !== ".html" && Object.hasOwn(CONTENT_TYPES, ext)) {
-        return new Response("Not found", { status: 404 })
+        return notFound()
       }
     }
 
     // SPA fallback: an extension-less route (or a traversal attempt) -> index.html.
     const index = await readSafe(indexPath)
-    return index === null ? new Response("Not found", { status: 404 }) : body(index, indexPath)
+    return index === null ? notFound() : body(index, indexPath, "index.html")
   }
 }
 
-function body(file: Uint8Array, path: string): Response {
+function servedPath(root: string, absPath: string): string {
+  return relative(root, absPath).split(sep).join("/")
+}
+
+function body(file: Uint8Array, path: string, served: string): Response {
   const type = CONTENT_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream"
-  return new Response(file, { status: 200, headers: { "content-type": type } })
+  return new Response(file, {
+    status: 200,
+    headers: { "content-type": type, "cache-control": cacheControl(served) },
+  })
+}
+
+function notFound(): Response {
+  return new Response("Not found", { status: 404, headers: { "cache-control": "no-cache" } })
 }
 
 async function readSafe(path: string): Promise<Uint8Array | null> {

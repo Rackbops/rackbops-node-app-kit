@@ -2,7 +2,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { describe, expect, it } from "vitest"
-import { resolveWithinRoot, spaHandler } from "./static.js"
+import { cacheControl, resolveWithinRoot, spaHandler } from "./static.js"
 
 const fixtureDir = resolve(dirname(fileURLToPath(import.meta.url)), "__fixtures__/public")
 
@@ -113,5 +113,64 @@ describe("spaHandler", () => {
     // (unencoded) separators.
     expect(res.status).toBe(200)
     expect(await res.text()).toContain("node-app-kit-fixture-index")
+  })
+})
+
+const IMMUTABLE = "public, max-age=31536000, immutable"
+
+describe("cacheControl", () => {
+  it("is immutable for a hashed file directly under assets/", () => {
+    expect(cacheControl("assets/index-AbCdEf12.js")).toBe(IMMUTABLE)
+  })
+
+  it("is no-cache for a hashed name outside assets/", () => {
+    expect(cacheControl("vendor/x-AbCdEf12.js")).toBe("no-cache")
+  })
+
+  it("is no-cache for an unhashed name under assets/", () => {
+    expect(cacheControl("assets/plain.js")).toBe("no-cache")
+  })
+
+  it("is no-cache for a hashed file nested deeper than assets/", () => {
+    expect(cacheControl("assets/nested/deep-AbCdEf12.js")).toBe("no-cache")
+  })
+
+  it("is no-cache for index.html and the entry", () => {
+    expect(cacheControl("index.html")).toBe("no-cache")
+    expect(cacheControl("index.js")).toBe("no-cache")
+  })
+
+  it("needs at least 8 hash characters", () => {
+    expect(cacheControl("assets/index-AbCdEf1.js")).toBe("no-cache")
+  })
+})
+
+describe("spaHandler cache-control", () => {
+  const cc = async (path: string): Promise<string | null> =>
+    (await appWith(fixtureDir).request(path)).headers.get("cache-control")
+
+  it("serves a hashed assets/ file immutable", async () => {
+    expect(await cc("/assets/index-AbCdEf12.js")).toBe(IMMUTABLE)
+  })
+
+  it("serves the entry, a vendor singleton, and / with no-cache", async () => {
+    expect(await cc("/index.js")).toBe("no-cache")
+    expect(await cc("/vendor/x-AbCdEf12.js")).toBe("no-cache")
+    expect(await cc("/")).toBe("no-cache")
+  })
+
+  it("serves an unhashed assets/ file with no-cache", async () => {
+    expect(await cc("/assets/plain.js")).toBe("no-cache")
+  })
+
+  it("classifies the SPA fallback as index.html, even for a route shaped like a hashed asset", async () => {
+    expect(await cc("/some/client/route")).toBe("no-cache")
+    expect(await cc("/assets/index-AbCdEf12")).toBe("no-cache")
+  })
+
+  it("marks a 404 no-cache so a purged bundle is not cached as missing", async () => {
+    const res = await appWith(fixtureDir).request("/assets/gone-AbCdEf12.js")
+    expect(res.status).toBe(404)
+    expect(res.headers.get("cache-control")).toBe("no-cache")
   })
 })

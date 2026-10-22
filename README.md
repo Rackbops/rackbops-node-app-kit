@@ -114,7 +114,10 @@ app.get("*", spaHandler(config.staticDir))
 
 Serves a single-page app from an absolute directory: rejects path traversal, returns a real 404
 for a missing known-type asset, and falls back to `index.html` for extension-less routes so
-client-side routing works.
+client-side routing works. Every response carries `Cache-Control`: `public, max-age=31536000,
+immutable` only for a content-hashed file directly under `assets/` (`assets/index-AbCdEf12.js`),
+`no-cache` for everything else (`index.html`, `/index.js`, `/vendor/*.js`, the SPA fallback, 404s),
+so an unhashed stable URL is never served stale after a redeploy.
 
 ## What's not here
 
