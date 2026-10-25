@@ -53,7 +53,8 @@ needed for `node:sqlite` at the pinned `engines.node >=24`.
 ## Release
 
 Push to `main` (a squash-merged PR) triggers `release.yml`, which bumps the version from
-conventional-commit messages touching `src/` or `package.json`, tags `vX.Y.Z`, and creates a GitHub release; the
+conventional-commit messages touching `src/` (not its `.md` files) or `package.json` (not a `chore(deps)`
+bump that leaves `dependencies`/`peerDependencies` alone), tags `vX.Y.Z`, and creates a GitHub release; the
 tag push triggers `publish.yml`. **`publish.yml` was derived from
 `rackbops-ui-ux-std-lib`'s and has since drifted** (that repo's now publishes with `pnpm -r
 publish --provenance`, pins action digests and creates the GitHub release itself; this one

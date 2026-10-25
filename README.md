@@ -21,6 +21,7 @@ Each is its own subpath export, so a consumer imports only what it uses.
 ### `@rackbops/node-app-kit/config`
 
 ```ts
+import { readFileSync } from "node:fs"
 import { resolveConfig } from "@rackbops/node-app-kit/config"
 
 // `null` means "no config file", so only ENOENT may return it: swallowing EACCES or EISDIR
