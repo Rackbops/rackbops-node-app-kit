@@ -21,15 +21,17 @@ export function openDatabase(dbFile: string): DatabaseSync {
 /**
  * Switching a fresh file to WAL needs a lock that SQLite's busy handler does not always wait for
  * when another process is doing the same, so `database is locked` can surface despite
- * `busy_timeout`. The loser of that race only has to try again, so retry briefly.
+ * `busy_timeout`. The loser of that race only has to try again, so retry, for up to 5 s in total (an attempt that really waited on a lock has already used its
+ * `busy_timeout`, and the deadline then ends the loop).
  */
 function enableWal(db: DatabaseSync): void {
-  for (let attempt = 0; ; attempt++) {
+  const deadline = Date.now() + 5000
+  for (;;) {
     try {
       db.exec("PRAGMA journal_mode = WAL")
       return
     } catch (err) {
-      if (attempt >= 50 || !/locked|busy/i.test(String(err))) {
+      if (Date.now() >= deadline || !/locked|busy/i.test(String(err))) {
         throw err
       }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)

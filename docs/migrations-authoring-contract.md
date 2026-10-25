@@ -35,7 +35,8 @@ directory must follow this contract, which the mechanism enforces or relies on:
   not held against it). A rebuild must also drop and recreate any view or trigger on the table: SQLite drops a
   trigger with its table, and renaming into the name a view reads from fails. The transaction is `BEGIN IMMEDIATE` and the version is re-read inside it,
   so two processes migrating one database at once apply each file once (open the handle with
-  `openDatabase`, which sets a 5 s busy timeout so the second process waits).
+  `openDatabase`, which sets a 5 s busy timeout and briefly retries the WAL switch, so the second process
+  waits for a few seconds rather than failing at once; a lock held longer than that still fails).
 - Ship your migrations directory as a sibling of your compiled output (never inside `dist/`,
   since `tsc` won't copy `.sql` files) -- and make sure your Dockerfile or build step actually
   copies it into the image; a missing copy step fails boot with `ENOENT`, not a clear error
