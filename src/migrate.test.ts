@@ -247,9 +247,15 @@ describe("migrate hardening", () => {
       },
     })
 
-    expect(migrate(stale, dir)).toBe(2)
-    expect(raced).toBe(true)
-    expect(stale.isTransaction).toBe(false)
-    expect(countRows(first, "t")).toBe(1)
+    try {
+      expect(migrate(stale, dir)).toBe(2)
+      expect(raced).toBe(true)
+      expect(stale.isTransaction).toBe(false)
+      expect(countRows(first, "t")).toBe(1)
+    } finally {
+      // afterEach deletes the temp dir; Windows refuses while a handle on state.db is open.
+      first.close()
+      other.close()
+    }
   })
 })
