@@ -35,5 +35,5 @@ dependency, not bundled).
 
 ## Audience
 
-Rackbops-org Node/Hono backends. Currently `Rackbops/kenzen`; `Rackbops/artifact-console` 2.0
-adopts it next (tracked as its own child issue, prose-linked from that repo's E2 epic).
+Rackbops-org Node/Hono backends. Currently `Rackbops/kenzen` and `Rackbops/artifact-console` 2.0
+(see the README's Consumers section for the modules each imports).
