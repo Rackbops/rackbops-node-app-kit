@@ -47,8 +47,15 @@ range=()
 
 # Walk the candidate commits one by one so the filters match the SUBJECT only (git's --grep
 # matches any line of the message). Skipped: the release bump commits themselves, and a
-# chore(deps) commit that does not touch src/ -- a Renovate devDependency bump edits
-# package.json but changes nothing that ships.
+# chore(deps) commit that does not touch src/ and leaves dependencies/peerDependencies of
+# package.json alone -- a Renovate devDependency bump changes nothing that ships.
+shipped_deps_changed() {
+  local sha=$1 before after
+  before=$(git show "${sha}^:package.json" 2>/dev/null | node -e 'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log(JSON.stringify([p.dependencies,p.peerDependencies]))' || true)
+  after=$(git show "${sha}:package.json" | node -e 'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log(JSON.stringify([p.dependencies,p.peerDependencies]))')
+  [[ "$before" != "$after" ]]
+}
+
 commit_log=""
 commit_bodies=""
 while IFS= read -r sha; do
@@ -57,7 +64,9 @@ while IFS= read -r sha; do
   if [[ "$subject" == "chore(release):"* ]]; then
     continue
   fi
-  if [[ "$subject" == "chore(deps)"* ]] && ! git show --pretty=format: --name-only "$sha" -- src/ | grep -q .; then
+  if [[ "$subject" == "chore(deps)"* ]] &&
+     [[ -z "$(git show --pretty=format: --name-only "$sha" -- src/)" ]] &&
+     ! shipped_deps_changed "$sha"; then
     continue
   fi
   commit_log+="${subject}"$'\n'

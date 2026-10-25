@@ -110,6 +110,11 @@ describe("release.sh (dry run)", () => {
     ).toContain("Dry run")
   })
 
+  it("releases a chore(deps) bump of a shipped dependency or peer dependency", () => {
+    const dep = { "package.json": '{\n  "version": "0.1.4","dependencies":{"a":"2"}\n}\n' }
+    expect(release([{ message: "chore(deps): bump a", files: dep }])).toContain("Dry run")
+  })
+
   it("proposes nothing for a commit outside src/ and package.json", () => {
     const out = release([{ message: "docs: x", files: { "README.md": "x\n" } }])
     expect(out).toContain("Nothing to do")
