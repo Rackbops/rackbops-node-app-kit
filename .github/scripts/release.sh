@@ -18,10 +18,8 @@ VERSION_FILE=package.json
 
 # Only commits touching these paths (minus markdown docs) trigger a release
 # and appear in the changelog. package.json is included so a manifest-only fix
-# (exports, files, peerDependencies, engines) can ship; the release bump commit
-# also touches it, so it is filtered out by subject (RELEASE_COMMIT_FILTER).
+# (exports, files, peerDependencies, engines) can ship.
 PATHSPEC=(src/ ":(exclude,glob)src/**/*.md" package.json)
-RELEASE_COMMIT_FILTER=(--invert-grep --grep='^chore(release):')
 
 # ── Commit-type display config ────────────────────────────────────────────────
 
@@ -44,14 +42,27 @@ declare -A COMMIT_TYPE_NAMES=(
 # ── Detect unreleased changes ─────────────────────────────────────────────────
 
 last_tag=$(git tag -l "v*" | sort -V | tail -1 || true)
+range=()
+[[ -n "$last_tag" ]] && range=("${last_tag}..HEAD")
 
-if [[ -n "$last_tag" ]]; then
-  commit_log=$(git log "${last_tag}..HEAD" --pretty=format:"%s" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
-  commit_bodies=$(git log "${last_tag}..HEAD" --pretty=format:"%B" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
-else
-  commit_log=$(git log --pretty=format:"%s" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
-  commit_bodies=$(git log --pretty=format:"%B" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
-fi
+# Walk the candidate commits one by one so the filters match the SUBJECT only (git's --grep
+# matches any line of the message). Skipped: the release bump commits themselves, and a
+# chore(deps) commit that does not touch src/ -- a Renovate devDependency bump edits
+# package.json but changes nothing that ships.
+commit_log=""
+commit_bodies=""
+while IFS= read -r sha; do
+  [[ -z "$sha" ]] && continue
+  subject=$(git log -1 --pretty=format:"%s" "$sha")
+  if [[ "$subject" == "chore(release):"* ]]; then
+    continue
+  fi
+  if [[ "$subject" == "chore(deps)"* ]] && ! git show --pretty=format: --name-only "$sha" -- src/ | grep -q .; then
+    continue
+  fi
+  commit_log+="${subject}"$'\n'
+  commit_bodies+="$(git log -1 --pretty=format:"%B" "$sha")"$'\n'
+done < <(git log "${range[@]}" --pretty=tformat:"%H" -- "${PATHSPEC[@]}")
 
 if [[ -z "$commit_log" ]]; then
   echo "No unreleased package changes since ${last_tag:-the beginning}. Nothing to do."

@@ -90,6 +90,26 @@ describe("release.sh (dry run)", () => {
     expect(out).toContain("Nothing to do")
   })
 
+  it("does not drop a real fix whose body mentions a chore(release): line", () => {
+    const out = release([
+      {
+        message: "fix(x): real\n\nchore(release): v9 mention",
+        files: { "src/a.ts": "export const a = 1\n" },
+      },
+    ])
+    expect(out).toContain("Dry run: 0.1.4 -> 0.1.5")
+  })
+
+  it("ignores a chore(deps) bump that only edits package.json, but not one touching src/", () => {
+    const pkg = { "package.json": '{\n  "version": "0.1.4","d":1\n}\n' }
+    expect(release([{ message: "chore(deps): bump x", files: pkg }])).toContain("Nothing to do")
+    expect(
+      release([
+        { message: "chore(deps): bump x", files: { ...pkg, "src/a.ts": "export const b = 1\n" } },
+      ]),
+    ).toContain("Dry run")
+  })
+
   it("proposes nothing for a commit outside src/ and package.json", () => {
     const out = release([{ message: "docs: x", files: { "README.md": "x\n" } }])
     expect(out).toContain("Nothing to do")
