@@ -1,9 +1,12 @@
 /**
  * Minimal structured logger: one JSON line per record to stdout. Extracted from
  * `Rackbops/kenzen`'s `packages/server/src/log.ts` (originally copied from
- * `Rackbops/artifact-console`'s `packages/host/src/log.ts`), already fully generic -- no change
- * from the source. `child()` returns a logger with extra bound fields. The sink and clock are
- * injectable so tests can capture output deterministically.
+ * `Rackbops/artifact-console`'s `packages/host/src/log.ts`), then hardened: an `Error` field
+ * serializes as `{ name, message, stack }`, a BigInt as a string, `time`/`level`/`msg` always win
+ * over a same-named field, and a field that cannot be serialized (a circular object) yields a
+ * fallback line instead of a throw -- logging never crashes its caller. `child()` returns a
+ * logger with extra bound fields. The sink and clock are injectable so tests can capture output
+ * deterministically.
  */
 
 export type LogLevel = "info" | "warn" | "error"
@@ -32,7 +35,22 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   const now = options.now ?? (() => new Date())
 
   function emit(level: LogLevel, msg: string, fields?: LogFields): void {
-    write(JSON.stringify({ time: now().toISOString(), level, msg, ...bindings, ...fields }))
+    const time = now().toISOString()
+    // The record's own keys are taken out of the caller's fields, so a field named `level` or
+    // `msg` cannot relabel the record; time/level/msg stay first in the output.
+    const { time: _t, level: _l, msg: _m, ...rest } = { ...bindings, ...fields }
+    try {
+      write(JSON.stringify({ time, level, msg, ...rest }, replacer))
+    } catch (err) {
+      write(
+        JSON.stringify({
+          time,
+          level,
+          msg,
+          logError: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    }
   }
 
   return {
@@ -42,4 +60,14 @@ export function createLogger(options: LoggerOptions = {}): Logger {
     child: (childBindings) =>
       createLogger({ write, now, bindings: { ...bindings, ...childBindings } }),
   }
+}
+
+function replacer(_key: string, value: unknown): unknown {
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message, stack: value.stack }
+  }
+  if (typeof value === "bigint") {
+    return value.toString()
+  }
+  return value
 }
