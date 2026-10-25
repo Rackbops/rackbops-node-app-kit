@@ -23,8 +23,9 @@ import type { Context } from "hono"
  * characters (Vite/rollup's default length) and must contain an uppercase letter or digit, so a
  * hyphenated plain name (`logo-background.png`) or a longer hand-picked one
  * (`date-picker-v2.js`) is not mistaken for one; a hash that happens to be all lowercase letters
- * just revalidates. A hand-named 8-character file (`Logo2024.png`) still looks exactly like a
- * hash: do not put hand-named files in `public/assets/`.
+ * just revalidates. A hand-named file whose last hyphen is followed by exactly 8 such characters
+ * (`my-Logo2024.png`) still looks exactly like a hash: do not put hand-named files in
+ * `public/assets/`.
  */
 const HASHED_ASSET = /-(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]{8}\.[^.]+$/
 
