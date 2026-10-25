@@ -21,11 +21,23 @@ Each is its own subpath export, so a consumer imports only what it uses.
 ### `@rackbops/node-app-kit/config`
 
 ```ts
+import { readFileSync } from "node:fs"
 import { resolveConfig } from "@rackbops/node-app-kit/config"
+
+// `null` means "no config file", so only ENOENT may return it: swallowing EACCES or EISDIR
+// would boot the app on defaults and silently ignore the operator's config.
+function readFileOrNull(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8")
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null
+    throw err
+  }
+}
 
 const config = resolveConfig(process.env, {
   prefix: "KENZEN", // -> reads KENZEN_CONFIG_DIR, KENZEN_HOST, KENZEN_PORT, ...
-  readFile: (path) => { try { return readFileSync(path, "utf8") } catch { return null } },
+  readFile: readFileOrNull,
   defaultStaticDir: "/app/public",
   defaultPort: 8686, // optional -- omit to keep this module's own 8686 fallback
 })
@@ -139,9 +151,9 @@ the consuming app. See [`docs/PURPOSE.md`](docs/PURPOSE.md) for the full non-goa
 
 ## Consumers
 
-- [`Rackbops/kenzen`](https://github.com/Rackbops/kenzen) -- the extraction source; adoption
-  tracked in a follow-up PR.
-- `Rackbops/artifact-console` 2.0 -- adoption pending, tracked as a child issue in that repo.
+- [`Rackbops/kenzen`](https://github.com/Rackbops/kenzen) -- the extraction source; imports
+  `config`, `log`, `state`, `version`, `healthz` and `static` (its lockfile resolves 0.1.4).
+- `Rackbops/artifact-console` 2.0 -- has adopted `config`, `db`, `migrate` and `log`.
 
 ## Development
 
