@@ -17,8 +17,11 @@ set -euo pipefail
 VERSION_FILE=package.json
 
 # Only commits touching these paths (minus markdown docs) trigger a release
-# and appear in the changelog.
-PATHSPEC=(src/ ":(exclude,glob)src/**/*.md")
+# and appear in the changelog. package.json is included so a manifest-only fix
+# (exports, files, peerDependencies, engines) can ship; the release bump commit
+# also touches it, so it is filtered out by subject (RELEASE_COMMIT_FILTER).
+PATHSPEC=(src/ ":(exclude,glob)src/**/*.md" package.json)
+RELEASE_COMMIT_FILTER=(--invert-grep --grep='^chore(release):')
 
 # ── Commit-type display config ────────────────────────────────────────────────
 
@@ -43,11 +46,11 @@ declare -A COMMIT_TYPE_NAMES=(
 last_tag=$(git tag -l "v*" | sort -V | tail -1 || true)
 
 if [[ -n "$last_tag" ]]; then
-  commit_log=$(git log "${last_tag}..HEAD" --pretty=format:"%s" -- "${PATHSPEC[@]}" || true)
-  commit_bodies=$(git log "${last_tag}..HEAD" --pretty=format:"%B" -- "${PATHSPEC[@]}" || true)
+  commit_log=$(git log "${last_tag}..HEAD" --pretty=format:"%s" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
+  commit_bodies=$(git log "${last_tag}..HEAD" --pretty=format:"%B" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
 else
-  commit_log=$(git log --pretty=format:"%s" -- "${PATHSPEC[@]}" || true)
-  commit_bodies=$(git log --pretty=format:"%B" -- "${PATHSPEC[@]}" || true)
+  commit_log=$(git log --pretty=format:"%s" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
+  commit_bodies=$(git log --pretty=format:"%B" "${RELEASE_COMMIT_FILTER[@]}" -- "${PATHSPEC[@]}" || true)
 fi
 
 if [[ -z "$commit_log" ]]; then
@@ -61,6 +64,10 @@ fi
 
 current_version=$(node -p "require('./${VERSION_FILE}').version")
 new_version=$(.github/scripts/next-version.sh "$current_version" <<< "$commit_bodies")
+if [[ "${RELEASE_DRY_RUN:-}" == 1 ]]; then
+  echo "Dry run: ${current_version} -> ${new_version}"
+  exit 0
+fi
 sed -i "s|\"version\": \"${current_version}\"|\"version\": \"${new_version}\"|" "$VERSION_FILE"
 echo "Version: ${current_version} -> ${new_version}"
 

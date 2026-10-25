@@ -3,7 +3,8 @@
 #
 # Reads conventional-commit messages (full bodies, any number of them) on
 # stdin and prints the next version. A breaking marker — "type!:" or
-# "type(scope)!:" at the start of a line, or a "BREAKING CHANGE:" /
+# "type(scope)!:" at the start of a line (optionally after a "* " or "- " list
+# bullet, as in a squash-merge body), or a "BREAKING CHANGE:" /
 # "BREAKING-CHANGE:" footer — bumps the minor and resets the patch while the
 # major is 0 (bumps the major once past 1.0). Anything else bumps the patch.
 #
@@ -21,7 +22,7 @@ minor=${BASH_REMATCH[2]}
 patch=${BASH_REMATCH[3]}
 
 breaking=false
-subject_re='^[a-z]+(\([^)]*\))?!:[[:space:]]'
+subject_re='^([*-][[:space:]]+)?[a-z]+(\([^)]*\))?!:[[:space:]]'
 while IFS= read -r line || [[ -n "$line" ]]; do
   if [[ "$line" =~ $subject_re ]] ||
      [[ "$line" == "BREAKING CHANGE:"* ]] ||
