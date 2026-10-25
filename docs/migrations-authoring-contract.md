@@ -27,10 +27,13 @@ directory must follow this contract, which the mechanism enforces or relies on:
   routine change.
 - Each file runs inside **one implicit transaction** (`migrate()` wraps it in `BEGIN`/`COMMIT`);
   a failure rolls the whole file back. Do **not** put `BEGIN`/`COMMIT` in a migration file
-  yourself. `migrate()` runs each file with `PRAGMA foreign_keys = OFF` (restored afterwards),
+  yourself (a `COMMIT` in the file makes it fail), and `migrate()` refuses to start inside a
+  transaction the caller already opened. `migrate()` runs each file with `PRAGMA foreign_keys = OFF` (restored afterwards),
   so SQLite's table-rebuild recipe (create new, copy, drop old, rename) does not cascade
   through child tables, then runs `PRAGMA foreign_key_check` and rolls the file back if any
-  reference dangles. The transaction is `BEGIN IMMEDIATE` and the version is re-read inside it,
+  reference dangles (violations that already existed before the file ran are not held against
+  it). A rebuild must also drop and recreate any view or trigger on the table: SQLite drops a
+  trigger with its table, and renaming into the name a view reads from fails. The transaction is `BEGIN IMMEDIATE` and the version is re-read inside it,
   so two processes migrating one database at once apply each file once (open the handle with
   `openDatabase`, which sets a 5 s busy timeout so the second process waits).
 - Ship your migrations directory as a sibling of your compiled output (never inside `dist/`,

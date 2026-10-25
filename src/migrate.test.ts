@@ -130,10 +130,34 @@ describe("migrate hardening", () => {
     const first = { "0001_a.sql": parentChild }
     migrate(db, migrationsDir(first))
     const dir = migrationsDir({ ...first, "0002_bad.sql": "INSERT INTO child VALUES(9, 99);" })
-    expect(() => migrate(db, dir)).toThrow(/0002_bad\.sql.*foreign key/)
+    expect(() => migrate(db, dir)).toThrow(
+      /0002_bad\.sql.*foreign key violations: 1 after the migration, 0 before/,
+    )
     expect(countRows(db, "child")).toBe(3)
     expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: 1 })
     expect(db.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 })
+  })
+
+  it("a foreign key violation that predates the migration does not block it", () => {
+    const db = openDatabase(":memory:")
+    migrate(db, migrationsDir({ "0001_a.sql": parentChild }))
+    db.exec("PRAGMA foreign_keys = OFF")
+    db.exec("INSERT INTO child VALUES(50, 999)")
+    db.exec("PRAGMA foreign_keys = ON")
+    const dir = migrationsDir({ "0001_a.sql": parentChild, "0002_z.sql": "CREATE TABLE z(x);" })
+    expect(migrate(db, dir)).toBe(2)
+  })
+
+  it("refuses to run inside a transaction the caller opened, and leaves it open", () => {
+    const db = openDatabase(":memory:")
+    db.exec("BEGIN")
+    db.exec("CREATE TABLE mine(x)")
+    expect(() => migrate(db, migrationsDir({ "0001_a.sql": "CREATE TABLE a(x);" }))).toThrow(
+      /open transaction/,
+    )
+    expect(db.isTransaction).toBe(true)
+    db.exec("COMMIT")
+    expect(tables(db)).toEqual(["mine"])
   })
 
   it("a foreign_keys setting of OFF stays OFF afterwards", () => {

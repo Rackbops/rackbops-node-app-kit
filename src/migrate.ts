@@ -86,6 +86,11 @@ function pad(n: number): string {
 }
 
 function applyMigration(db: DatabaseSync, file: string, sql: string, version: number): void {
+  // A transaction the caller opened would be rolled back by the error path below, and
+  // PRAGMA foreign_keys cannot be switched inside it.
+  if (db.isTransaction) {
+    throw new Error(`migration ${file} failed: migrate() cannot run inside an open transaction`)
+  }
   // PRAGMA foreign_keys is a no-op inside a transaction, so it is set before BEGIN and put back
   // in the finally.
   const foreignKeys = foreignKeysSetting(db)
@@ -99,15 +104,16 @@ function applyMigration(db: DatabaseSync, file: string, sql: string, version: nu
         db.exec("ROLLBACK")
         return
       }
+      // Violations that were already there (a database written with foreign_keys OFF) are not
+      // this migration's doing; only new ones fail it.
+      const dangling = countForeignKeyViolations(db)
       db.exec(sql)
       // `version` is a validated integer from the filename, so this interpolation is safe
       // (PRAGMA does not accept a bound parameter).
       db.exec(`PRAGMA user_version = ${version}`)
-      const dangling = db.prepare("PRAGMA foreign_key_check").all() as { table: string }[]
-      if (dangling.length > 0) {
-        throw new Error(
-          `${dangling.length} foreign key violation(s) after the migration, first in table ${dangling[0]?.table}`,
-        )
+      const after = countForeignKeyViolations(db)
+      if (after > dangling) {
+        throw new Error(`foreign key violations: ${after} after the migration, ${dangling} before`)
       }
       db.exec("COMMIT")
     } catch (err) {
@@ -122,6 +128,10 @@ function applyMigration(db: DatabaseSync, file: string, sql: string, version: nu
   } finally {
     db.exec(`PRAGMA foreign_keys = ${foreignKeys}`)
   }
+}
+
+function countForeignKeyViolations(db: DatabaseSync): number {
+  return db.prepare("PRAGMA foreign_key_check").all().length
 }
 
 function foreignKeysSetting(db: DatabaseSync): number {
