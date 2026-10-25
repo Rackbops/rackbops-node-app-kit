@@ -158,4 +158,29 @@ describe("logger hardening", () => {
     log.warn("n", { errs: [new Error("x")] })
     expect(JSON.parse(lines[0] as string).errs[0].message).toBe("x")
   })
+
+  it("leaves object-valued Error props (an HTTP client's config and response) out of the line", () => {
+    const { lines, log } = capture()
+    const err = Object.assign(new Error("req failed"), {
+      code: "ERR_BAD_REQUEST",
+      status: 401,
+      config: { headers: { Authorization: "Bearer SECRET" } },
+    })
+    log.error("http", { err })
+    expect(lines[0]).not.toContain("SECRET")
+    expect(JSON.parse(lines[0] as string).err).toMatchObject({
+      code: "ERR_BAD_REQUEST",
+      status: 401,
+    })
+  })
+
+  it("an Error whose cause loops back to itself is cut, not expanded forever", () => {
+    const { lines, log } = capture()
+    const err = new Error("loop")
+    err.cause = err
+    log.error("c", { err })
+    const rec = JSON.parse(lines[0] as string)
+    expect(rec.err.message).toBe("loop")
+    expect(rec.err.cause).toBe("[circular error]")
+  })
 })
