@@ -107,7 +107,8 @@ const state = openState({ dbFile: config.dbFile, migrationsDir: "/app/migrations
 `db` opens a `node:sqlite` database (WAL, foreign keys on). `migrate` applies numbered
 `NNNN_name.sql` files from a directory you own, tracked by `PRAGMA user_version` -- see
 [`docs/migrations-authoring-contract.md`](docs/migrations-authoring-contract.md) for the full
-authoring contract (numbering starts at `0001`, append-only, one implicit transaction per file).
+authoring contract (numbering `0001..NNNN` with no gap, append-only, one transaction per file with foreign-key
+enforcement suspended and checked, safe against two processes migrating at once).
 `state` is the boot-time combination of both: open the database, migrate, log `state ready` with
 the resulting schema version.
 

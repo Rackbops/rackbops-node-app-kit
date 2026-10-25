@@ -8,6 +8,12 @@ directory must follow this contract, which the mechanism enforces or relies on:
 
 - Name each file `NNNN_name.sql` with a **4-digit, zero-padded, unique** number. A `.sql` file
   that doesn't match, or a duplicate number, is a **hard error at boot** -- never a silent skip.
+- **Numbers run `0001..NNNN` with no gap.** A missing number is a hard error naming it, so a
+  migration that lands late under a lower number than a database already at a higher version
+  can never be skipped silently. Renumber the late migration above the highest one instead.
+- **An older build refuses a newer database.** If the database's `user_version` is above the
+  highest migration on disk, `migrate()` throws rather than running old code on a schema it
+  does not know (rollbacks, an old CLI checkout).
 - **Numbers start at `0001`, not `0000`.** `migrate()` rejects a `0000_*.sql` file outright: a
   fresh database's schema version already starts at `0`, so a `0000` migration would otherwise
   be silently and permanently skipped forever (found by an adversarial review on
@@ -21,7 +27,12 @@ directory must follow this contract, which the mechanism enforces or relies on:
   routine change.
 - Each file runs inside **one implicit transaction** (`migrate()` wraps it in `BEGIN`/`COMMIT`);
   a failure rolls the whole file back. Do **not** put `BEGIN`/`COMMIT` in a migration file
-  yourself.
+  yourself. `migrate()` runs each file with `PRAGMA foreign_keys = OFF` (restored afterwards),
+  so SQLite's table-rebuild recipe (create new, copy, drop old, rename) does not cascade
+  through child tables, then runs `PRAGMA foreign_key_check` and rolls the file back if any
+  reference dangles. The transaction is `BEGIN IMMEDIATE` and the version is re-read inside it,
+  so two processes migrating one database at once apply each file once (open the handle with
+  `openDatabase`, which sets a 5 s busy timeout so the second process waits).
 - Ship your migrations directory as a sibling of your compiled output (never inside `dist/`,
   since `tsc` won't copy `.sql` files) -- and make sure your Dockerfile or build step actually
   copies it into the image; a missing copy step fails boot with `ENOENT`, not a clear error
