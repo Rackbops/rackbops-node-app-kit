@@ -125,7 +125,10 @@ for a missing known-type asset, and falls back to `index.html` for extension-les
 client-side routing works. Every response carries `Cache-Control`: `public, max-age=31536000,
 immutable` only for a content-hashed file directly under `assets/` (`assets/index-AbCdEf12.js`),
 `no-cache` for everything else (`index.html`, `/index.js`, `/vendor/*.js`, the SPA fallback, 404s),
-so an unhashed stable URL is never served stale after a redeploy.
+so an unhashed stable URL is never served stale after a redeploy. The hash must be exactly 8
+characters (Vite/rollup's default), and the server sends no `ETag`/`Last-Modified`, so `no-cache`
+files are re-downloaded in full. Don't put hand-named files in `public/assets/`: an 8-character
+name with a capital or digit looks like a hash and would be cached for a year.
 
 ## What's not here
 

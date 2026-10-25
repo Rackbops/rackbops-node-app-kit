@@ -19,11 +19,14 @@ import type { Context } from "hono"
  */
 
 /**
- * A rollup-style content hash before the extension: `index-AbCdEf12.js`. The hash must contain an
- * uppercase letter or digit, so a hyphenated plain name (`logo-background.png`) is not mistaken
- * for one; a hash that happens to be all lowercase letters just revalidates.
+ * A rollup-style content hash before the extension: `index-AbCdEf12.js`. The hash is exactly 8
+ * characters (Vite/rollup's default length) and must contain an uppercase letter or digit, so a
+ * hyphenated plain name (`logo-background.png`) or a longer hand-picked one
+ * (`date-picker-v2.js`) is not mistaken for one; a hash that happens to be all lowercase letters
+ * just revalidates. A hand-named 8-character file (`Logo2024.png`) still looks exactly like a
+ * hash: do not put hand-named files in `public/assets/`.
  */
-const HASHED_ASSET = /-(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]{8,}\.[^.]+$/
+const HASHED_ASSET = /-(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]{8}\.[^.]+$/
 
 /**
  * `Cache-Control` for a *served* path (root-relative, `/`-separated, e.g. `assets/index-X.js`).
@@ -31,8 +34,9 @@ const HASHED_ASSET = /-(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]{8,}\.[^.]+$/
  * carries a content hash; everything else revalidates (`no-cache`). Both conditions are
  * required, and the key is the served path, so the SPA fallback's `index.html` is classified
  * as `index.html`, never as the client route it answered. Erring toward revalidation is the
- * safe default: a mis-classified hashed asset costs one conditional request, a mis-classified
- * stable URL serves stale code indefinitely.
+ * safe default: this server sends no `ETag` or `Last-Modified`, so `no-cache` means the browser
+ * downloads the file in full on every load (a mis-classified hashed asset costs its bytes each
+ * time), whereas a mis-classified stable URL serves stale code indefinitely.
  */
 export function cacheControl(servedPath: string): string {
   const parts = servedPath.split("/")
@@ -45,6 +49,8 @@ export function cacheControl(servedPath: string): string {
 const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".wasm": "application/wasm",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",

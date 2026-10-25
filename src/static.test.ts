@@ -149,8 +149,30 @@ describe("cacheControl", () => {
     expect(cacheControl("foo/assets/x-AbCdEf12.js")).toBe("no-cache")
   })
 
+  it("is no-cache for a hand-picked name with more than 8 characters after the hyphen", () => {
+    expect(cacheControl("assets/date-picker-v2.js")).toBe("no-cache")
+    expect(cacheControl("assets/index-AbCdEf123.js")).toBe("no-cache")
+  })
+
   it("needs at least 8 hash characters", () => {
     expect(cacheControl("assets/index-AbCdEf1.js")).toBe("no-cache")
+  })
+})
+
+describe("spaHandler content types", () => {
+  it("serves .mjs as JavaScript and .wasm as application/wasm", async () => {
+    const mjs = await appWith(fixtureDir).request("/module.mjs")
+    expect(mjs.status).toBe(200)
+    expect(mjs.headers.get("content-type")).toBe("text/javascript; charset=utf-8")
+    const wasm = await appWith(fixtureDir).request("/mod.wasm")
+    expect(wasm.status).toBe(200)
+    expect(wasm.headers.get("content-type")).toBe("application/wasm")
+  })
+
+  it("sends no validator, so no-cache really means a full re-download", async () => {
+    const res = await appWith(fixtureDir).request("/index.html")
+    expect(res.headers.get("etag")).toBeNull()
+    expect(res.headers.get("last-modified")).toBeNull()
   })
 })
 
