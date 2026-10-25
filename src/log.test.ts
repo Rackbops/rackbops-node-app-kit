@@ -91,5 +91,71 @@ describe("logger hardening", () => {
     const rec = JSON.parse(lines[0] as string)
     expect(rec).toMatchObject({ level: "warn", msg: "loop" })
     expect(rec.logError).toMatch(/circular/i)
+    expect(rec.time).toBe("1970-01-01T00:00:00.000Z")
+  })
+
+  it("a throwing getter in the fields neither throws nor drops the line", () => {
+    const { lines, log } = capture()
+    const bad = Object.defineProperty({}, "k", {
+      enumerable: true,
+      get() {
+        throw new Error("getter boom")
+      },
+    })
+    expect(() => log.info("g", bad)).not.toThrow()
+    expect(JSON.parse(lines[0] as string)).toEqual({
+      time: "1970-01-01T00:00:00.000Z",
+      level: "info",
+      msg: "g",
+      logError: "getter boom",
+    })
+  })
+
+  it("the fallback itself cannot throw, even for a thrown non-Error with no string form", () => {
+    const { lines, log } = capture()
+    const field = {
+      toJSON() {
+        throw Object.create(null)
+      },
+    }
+    expect(() => log.info("x", { field })).not.toThrow()
+    expect(JSON.parse(lines[0] as string).logError).toBe("unserializable log field")
+  })
+
+  it("an Error keeps its cause, code and AggregateError members", () => {
+    const { lines, log } = capture()
+    const err = Object.assign(new Error("outer", { cause: new RangeError("inner") }), {
+      code: "E_X",
+    })
+    log.error("e", { err, agg: new AggregateError([new Error("a")], "many") })
+    const rec = JSON.parse(lines[0] as string)
+    expect(rec.err).toMatchObject({
+      message: "outer",
+      code: "E_X",
+      cause: { name: "RangeError", message: "inner" },
+    })
+    expect(rec.agg.errors[0].message).toBe("a")
+  })
+
+  it("child() keeps the parent's bindings and the fallback line keeps its key order", () => {
+    const { lines, log } = capture()
+    const child = log.child({ a: 1 }).child({ b: 2 })
+    child.info("ok")
+    expect(JSON.parse(lines[0] as string)).toMatchObject({ a: 1, b: 2 })
+    const loop: Record<string, unknown> = {}
+    loop.self = loop
+    child.info("bad", { loop })
+    expect(Object.keys(JSON.parse(lines[1] as string))).toEqual([
+      "time",
+      "level",
+      "msg",
+      "logError",
+    ])
+  })
+
+  it("a nested Error in an array serializes too", () => {
+    const { lines, log } = capture()
+    log.warn("n", { errs: [new Error("x")] })
+    expect(JSON.parse(lines[0] as string).errs[0].message).toBe("x")
   })
 })

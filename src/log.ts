@@ -2,9 +2,9 @@
  * Minimal structured logger: one JSON line per record to stdout. Extracted from
  * `Rackbops/kenzen`'s `packages/server/src/log.ts` (originally copied from
  * `Rackbops/artifact-console`'s `packages/host/src/log.ts`), then hardened: an `Error` field
- * serializes as `{ name, message, stack }`, a BigInt as a string, `time`/`level`/`msg` always win
- * over a same-named field, and a field that cannot be serialized (a circular object) yields a
- * fallback line instead of a throw -- logging never crashes its caller. `child()` returns a
+ * serializes as its own enumerable props plus `name`, `message`, `stack` and `cause`, a BigInt as a string, `time`/`level`/`msg` always win
+ * over a same-named field, and a field that cannot be serialized (a circular object, a throwing getter) yields a
+ * fallback line with only time/level/msg/logError instead of a throw -- serializing a record never throws (a failing `write` sink still propagates). `child()` returns a
  * logger with extra bound fields. The sink and clock are injectable so tests can capture output
  * deterministically.
  */
@@ -36,21 +36,7 @@ export function createLogger(options: LoggerOptions = {}): Logger {
 
   function emit(level: LogLevel, msg: string, fields?: LogFields): void {
     const time = now().toISOString()
-    // The record's own keys are taken out of the caller's fields, so a field named `level` or
-    // `msg` cannot relabel the record; time/level/msg stay first in the output.
-    const { time: _t, level: _l, msg: _m, ...rest } = { ...bindings, ...fields }
-    try {
-      write(JSON.stringify({ time, level, msg, ...rest }, replacer))
-    } catch (err) {
-      write(
-        JSON.stringify({
-          time,
-          level,
-          msg,
-          logError: err instanceof Error ? err.message : String(err),
-        }),
-      )
-    }
+    write(serialize(time, level, msg, bindings, fields))
   }
 
   return {
@@ -62,9 +48,46 @@ export function createLogger(options: LoggerOptions = {}): Logger {
   }
 }
 
+function serialize(
+  time: string,
+  level: LogLevel,
+  msg: string,
+  bindings: LogFields,
+  callFields?: LogFields,
+): string {
+  try {
+    // The record's own keys are taken out of the caller's fields, so a field named `level` or
+    // `msg` cannot relabel the record; time/level/msg stay first in the output.
+    const { time: _t, level: _l, msg: _m, ...fields } = { ...bindings, ...callFields }
+    return JSON.stringify({ time, level, msg, ...fields }, replacer)
+  } catch (err) {
+    // Only the record's own keys survive: one unserializable field costs the line its fields,
+    // never the line itself.
+    return JSON.stringify({ time, level, msg, logError: describe(err) })
+  }
+}
+
+function describe(err: unknown): string {
+  try {
+    return err instanceof Error ? err.message : String(err)
+  } catch {
+    return "unserializable log field"
+  }
+}
+
 function replacer(_key: string, value: unknown): unknown {
   if (value instanceof Error) {
-    return { name: value.name, message: value.message, stack: value.stack }
+    const extra = value instanceof AggregateError ? { errors: value.errors } : {}
+    // Own enumerable props first (code, errno, ...), then the standard ones: `name`, `message`
+    // and `stack` are non-enumerable on Error, and `cause` is own but non-enumerable too.
+    return {
+      ...value,
+      ...extra,
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      ...(value.cause === undefined ? {} : { cause: value.cause }),
+    }
   }
   if (typeof value === "bigint") {
     return value.toString()
