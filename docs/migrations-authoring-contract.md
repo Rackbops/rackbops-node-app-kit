@@ -31,8 +31,8 @@ directory must follow this contract, which the mechanism enforces or relies on:
   transaction the caller already opened. `migrate()` runs each file with `PRAGMA foreign_keys = OFF` (restored afterwards),
   so SQLite's table-rebuild recipe (create new, copy, drop old, rename) does not cascade
   through child tables, then runs `PRAGMA foreign_key_check` and rolls the file back if any
-  reference dangles (violations that already existed before the file ran are not held against
-  it). A rebuild must also drop and recreate any view or trigger on the table: SQLite drops a
+  reference dangles (violations that already existed before the file ran, from any earlier migration or write, are
+  not held against it). A rebuild must also drop and recreate any view or trigger on the table: SQLite drops a
   trigger with its table, and renaming into the name a view reads from fails. The transaction is `BEGIN IMMEDIATE` and the version is re-read inside it,
   so two processes migrating one database at once apply each file once (open the handle with
   `openDatabase`, which sets a 5 s busy timeout so the second process waits).

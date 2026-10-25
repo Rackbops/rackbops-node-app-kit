@@ -249,6 +249,7 @@ describe("migrate hardening", () => {
 
     expect(migrate(stale, dir)).toBe(2)
     expect(raced).toBe(true)
+    expect(stale.isTransaction).toBe(false)
     expect(countRows(first, "t")).toBe(1)
   })
 })
