@@ -39,7 +39,7 @@ directory must follow this contract, which the mechanism enforces or relies on:
   waits for a few seconds rather than failing at once; a lock held longer than that still fails).
 - Ship your migrations directory as a sibling of your compiled output (never inside `dist/`,
   since `tsc` won't copy `.sql` files) -- and make sure your Dockerfile or build step actually
-  copies it into the image; a missing copy step fails boot with `ENOENT`, not a clear error
-  naming the missing directory.
+  copies it into the image; a missing copy step fails boot with
+  `ENOENT: no such file or directory, scandir '<dir>'`, which names the missing directory.
 
 See [`README.md`](../README.md) for `migrate`'s and `state`'s full API.
