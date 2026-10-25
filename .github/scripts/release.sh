@@ -17,8 +17,9 @@ set -euo pipefail
 VERSION_FILE=package.json
 
 # Only commits touching these paths (minus markdown docs) trigger a release
-# and appear in the changelog.
-PATHSPEC=(src/ ":(exclude,glob)src/**/*.md")
+# and appear in the changelog. package.json is included so a manifest-only fix
+# (exports, files, peerDependencies, engines) can ship.
+PATHSPEC=(src/ ":(exclude,glob)src/**/*.md" package.json)
 
 # ── Commit-type display config ────────────────────────────────────────────────
 
@@ -41,14 +42,36 @@ declare -A COMMIT_TYPE_NAMES=(
 # ── Detect unreleased changes ─────────────────────────────────────────────────
 
 last_tag=$(git tag -l "v*" | sort -V | tail -1 || true)
+range=()
+[[ -n "$last_tag" ]] && range=("${last_tag}..HEAD")
 
-if [[ -n "$last_tag" ]]; then
-  commit_log=$(git log "${last_tag}..HEAD" --pretty=format:"%s" -- "${PATHSPEC[@]}" || true)
-  commit_bodies=$(git log "${last_tag}..HEAD" --pretty=format:"%B" -- "${PATHSPEC[@]}" || true)
-else
-  commit_log=$(git log --pretty=format:"%s" -- "${PATHSPEC[@]}" || true)
-  commit_bodies=$(git log --pretty=format:"%B" -- "${PATHSPEC[@]}" || true)
-fi
+# Walk the candidate commits one by one so the filters match the SUBJECT only (git's --grep
+# matches any line of the message). Skipped: the release bump commits themselves, and a
+# chore(deps) commit that does not touch src/ and leaves dependencies/peerDependencies of
+# package.json alone -- a Renovate devDependency bump changes nothing that ships.
+shipped_deps_changed() {
+  local sha=$1 before after
+  before=$(git show "${sha}^:package.json" 2>/dev/null | node -e 'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log(JSON.stringify([p.dependencies,p.peerDependencies]))' || true)
+  after=$(git show "${sha}:package.json" | node -e 'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log(JSON.stringify([p.dependencies,p.peerDependencies]))')
+  [[ "$before" != "$after" ]]
+}
+
+commit_log=""
+commit_bodies=""
+while IFS= read -r sha; do
+  [[ -z "$sha" ]] && continue
+  subject=$(git log -1 --pretty=format:"%s" "$sha")
+  if [[ "$subject" == "chore(release):"* ]]; then
+    continue
+  fi
+  if [[ "$subject" == "chore(deps)"* ]] &&
+     [[ -z "$(git show --pretty=format: --name-only "$sha" -- src/)" ]] &&
+     ! shipped_deps_changed "$sha"; then
+    continue
+  fi
+  commit_log+="${subject}"$'\n'
+  commit_bodies+="$(git log -1 --pretty=format:"%B" "$sha")"$'\n'
+done < <(git log "${range[@]}" --pretty=tformat:"%H" -- "${PATHSPEC[@]}")
 
 if [[ -z "$commit_log" ]]; then
   echo "No unreleased package changes since ${last_tag:-the beginning}. Nothing to do."
@@ -61,6 +84,10 @@ fi
 
 current_version=$(node -p "require('./${VERSION_FILE}').version")
 new_version=$(.github/scripts/next-version.sh "$current_version" <<< "$commit_bodies")
+if [[ "${RELEASE_DRY_RUN:-}" == 1 ]]; then
+  echo "Dry run: ${current_version} -> ${new_version}"
+  exit 0
+fi
 sed -i "s|\"version\": \"${current_version}\"|\"version\": \"${new_version}\"|" "$VERSION_FILE"
 echo "Version: ${current_version} -> ${new_version}"
 
