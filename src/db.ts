@@ -3,14 +3,38 @@ import { DatabaseSync } from "node:sqlite"
 /**
  * Opens a SQLite state database (Node's built-in `node:sqlite`, zero external DB dependency).
  * Extracted from `Rackbops/kenzen`'s `packages/server/src/db.ts` (originally copied from
- * `Rackbops/artifact-console`'s `packages/host/src/db.ts`), already fully generic -- no change
- * from the source. WAL for concurrent reads during a write; foreign keys on. This is the
+ * `Rackbops/artifact-console`'s `packages/host/src/db.ts`), already fully generic. WAL for
+ * concurrent reads during a write; foreign keys on; a 5 s busy timeout and a short retry of the
+ * WAL switch (both added here) so a second process (a CLI next to the server) waits for a lock
+ * instead of failing at once, including when both open a fresh file together. This is the
  * database I/O edge: `migrate.ts` and `state.ts` take the handle it returns rather than opening
  * their own, so they unit-test against a `:memory:` database.
  */
 export function openDatabase(dbFile: string): DatabaseSync {
   const db = new DatabaseSync(dbFile)
-  db.exec("PRAGMA journal_mode = WAL")
+  db.exec("PRAGMA busy_timeout = 5000")
+  enableWal(db)
   db.exec("PRAGMA foreign_keys = ON")
   return db
+}
+
+/**
+ * Switching a fresh file to WAL needs a lock that SQLite's busy handler does not always wait for
+ * when another process is doing the same, so `database is locked` can surface despite
+ * `busy_timeout`. The loser of that race only has to try again, so retry, for up to 5 s in total (an attempt that really waited on a lock has already used its
+ * `busy_timeout`, and the deadline then ends the loop).
+ */
+function enableWal(db: DatabaseSync): void {
+  const deadline = Date.now() + 5000
+  for (;;) {
+    try {
+      db.exec("PRAGMA journal_mode = WAL")
+      return
+    } catch (err) {
+      if (Date.now() >= deadline || !/locked|busy/i.test(String(err))) {
+        throw err
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+    }
+  }
 }

@@ -53,10 +53,13 @@ needed for `node:sqlite` at the pinned `engines.node >=24`.
 ## Release
 
 Push to `main` (a squash-merged PR) triggers `release.yml`, which bumps the version from
-conventional-commit messages touching `src/`, tags `vX.Y.Z`, and creates a GitHub release; the
-tag push triggers `publish.yml`. **`publish.yml` is a byte-for-byte copy of
-`rackbops-ui-ux-std-lib`'s** (names substituted only -- diff it against that repo's copy before
-believing anything has drifted). Its default auth path is **OIDC trusted publishing** -- no
+conventional-commit messages touching `src/` (not its `.md` files) or `package.json` (not a `chore(deps)`
+bump that leaves `dependencies`/`peerDependencies` alone), tags `vX.Y.Z`, and creates a GitHub release; the
+tag push triggers `publish.yml`. **`publish.yml` was derived from
+`rackbops-ui-ux-std-lib`'s and has since drifted** (that repo's now publishes with `pnpm -r
+publish --provenance`, pins action digests and creates the GitHub release itself; this one
+upgrades npm, publishes one package with `npm publish`, and `release.sh` creates the release) --
+diff the two before assuming either follows the other. Its default auth path is **OIDC trusted publishing** -- no
 long-lived token; GitHub mints a short-lived id-token (`permissions: id-token: write`) and npm
 exchanges it against the trusted publisher configured on npmjs.com for
 `Rackbops`/`rackbops-node-app-kit`/`publish.yml`, generating provenance automatically. `NPM_TOKEN`

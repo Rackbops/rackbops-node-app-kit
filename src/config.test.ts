@@ -204,7 +204,7 @@ describe("resolveConfig port precedence with defaultPort", () => {
     readFile,
     defaultStaticDir: "/app/public",
     defaultPort,
-    platform: "linux",
+    platform: "linux" as const,
   })
 
   it("omitting defaultPort keeps the original 8686 fallback unchanged (no behaviour change for an existing caller)", () => {
@@ -262,7 +262,7 @@ describe("resolveConfig with a different prefix", () => {
     prefix: "AC",
     readFile,
     defaultStaticDir: "/app/public",
-    platform: "linux",
+    platform: "linux" as const,
   })
 
   it("reads AC_* env vars, not KENZEN_*", () => {

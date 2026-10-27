@@ -21,11 +21,23 @@ Each is its own subpath export, so a consumer imports only what it uses.
 ### `@rackbops/node-app-kit/config`
 
 ```ts
+import { readFileSync } from "node:fs"
 import { resolveConfig } from "@rackbops/node-app-kit/config"
+
+// `null` means "no config file", so only ENOENT may return it: swallowing EACCES or EISDIR
+// would boot the app on defaults and silently ignore the operator's config.
+function readFileOrNull(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8")
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null
+    throw err
+  }
+}
 
 const config = resolveConfig(process.env, {
   prefix: "KENZEN", // -> reads KENZEN_CONFIG_DIR, KENZEN_HOST, KENZEN_PORT, ...
-  readFile: (path) => { try { return readFileSync(path, "utf8") } catch { return null } },
+  readFile: readFileOrNull,
   defaultStaticDir: "/app/public",
   defaultPort: 8686, // optional -- omit to keep this module's own 8686 fallback
 })
@@ -107,7 +119,8 @@ const state = openState({ dbFile: config.dbFile, migrationsDir: "/app/migrations
 `db` opens a `node:sqlite` database (WAL, foreign keys on). `migrate` applies numbered
 `NNNN_name.sql` files from a directory you own, tracked by `PRAGMA user_version` -- see
 [`docs/migrations-authoring-contract.md`](docs/migrations-authoring-contract.md) for the full
-authoring contract (numbering starts at `0001`, append-only, one implicit transaction per file).
+authoring contract (numbering `0001..NNNN` with no gap, append-only, one transaction per file with foreign-key
+enforcement suspended and checked, safe against two processes migrating at once).
 `state` is the boot-time combination of both: open the database, migrate, log `state ready` with
 the resulting schema version.
 
@@ -124,7 +137,10 @@ for a missing known-type asset, and falls back to `index.html` for extension-les
 client-side routing works. Every response carries `Cache-Control`: `public, max-age=31536000,
 immutable` only for a content-hashed file directly under `assets/` (`assets/index-AbCdEf12.js`),
 `no-cache` for everything else (`index.html`, `/index.js`, `/vendor/*.js`, the SPA fallback, 404s),
-so an unhashed stable URL is never served stale after a redeploy.
+so an unhashed stable URL is never served stale after a redeploy. The hash must be exactly 8
+characters (Vite/rollup's default), and the server sends no `ETag`/`Last-Modified`, so `no-cache`
+files are re-downloaded in full. Don't put hand-named files in `public/assets/`: a name ending in a hyphen plus 8 characters
+with a capital or digit (`my-Logo2024.png`) looks like a hash and would be cached for a year.
 
 ## What's not here
 
@@ -135,9 +151,9 @@ the consuming app. See [`docs/PURPOSE.md`](docs/PURPOSE.md) for the full non-goa
 
 ## Consumers
 
-- [`Rackbops/kenzen`](https://github.com/Rackbops/kenzen) -- the extraction source; adoption
-  tracked in a follow-up PR.
-- `Rackbops/artifact-console` 2.0 -- adoption pending, tracked as a child issue in that repo.
+- [`Rackbops/kenzen`](https://github.com/Rackbops/kenzen) -- the extraction source; imports
+  `config`, `log`, `state`, `version`, `healthz` and `static` (its lockfile resolves 0.1.4).
+- `Rackbops/artifact-console` 2.0 -- has adopted `config`, `db`, `migrate` and `log`.
 
 ## Development
 

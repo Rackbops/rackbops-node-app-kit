@@ -6,7 +6,7 @@ up identically in two of roshne's backends -- `Rackbops/artifact-console` and `R
 blank-env config crash; `#146`, a silently-skipped `0000` migration -- both found in one copy,
 fixed there, and not yet present in the other). Copy-consumption is fine for a deploy shape
 (each app's `compose.yaml`/`Dockerfile` genuinely differs); it is the wrong choice for *code*
-that is byte-for-byte identical logic with identical bugs to fix twice. This package extracts
+that is identical logic with identical bugs to fix twice. This package extracts
 that code once, with its regression tests, so a third consumer never re-forks it and a fix
 lands for every consumer at once.
 
@@ -35,5 +35,5 @@ dependency, not bundled).
 
 ## Audience
 
-Rackbops-org Node/Hono backends. Currently `Rackbops/kenzen`; `Rackbops/artifact-console` 2.0
-adopts it next (tracked as its own child issue, prose-linked from that repo's E2 epic).
+Rackbops-org Node/Hono backends. Currently `Rackbops/kenzen` and `Rackbops/artifact-console` 2.0
+(see the README's Consumers section for the modules each imports).
